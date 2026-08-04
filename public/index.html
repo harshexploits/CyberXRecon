@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Pro - Advanced Intelligence</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            background: #050a14; 
+            color: #e0f2fe; 
+            font-family: 'Rajdhani', sans-serif; 
+            min-height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 3D Globe Canvas Container - exactly 5cm */
+        #globe-container {
+            position: fixed;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 5cm;
+            height: 5cm;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* Matrix Scanning Line */
+        .scan-line {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            background: linear-gradient(to bottom, transparent 0%, rgba(56, 189, 248, 0.05) 50%, transparent 100%);
+            background-size: 100% 200%;
+            animation: scan 8s linear infinite;
+        }
+        @keyframes scan {
+            0% { background-position: 0 0%; }
+            100% { background-position: 0 200%; }
+        }
+
+        /* Particle Dots Background */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.05) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.05) 0%, transparent 20%);
+            z-index: 0;
+        }
+
+        /* Glassmorphism Main Container */
+        .container {
+            position: relative;
+            z-index: 10;
+            width: 95%;
+            max-width: 500px;
+            padding: 40px 30px;
+            background: rgba(10, 14, 26, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(56, 189, 248, 0.05);
+        }
+
+        .header { text-align: center; margin-bottom: 35px; margin-top: 15px; }
+        .header h1 { 
+            font-family: 'Orbitron', sans-serif; 
+            font-size: 2.2rem; 
+            font-weight: 900;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+        .header p { color: #64748b; font-weight: 300; letter-spacing: 2px; }
+
+        /* Inputs & Buttons */
+        .input-group { margin-bottom: 15px; }
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(5, 10, 20, 0.8);
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            color: #f1f5f9;
+            font-size: 1rem;
+            font-family: 'Rajdhani', sans-serif;
+            transition: all 0.3s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            border: none;
+            border-radius: 8px;
+            color: #0f172a;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(56, 189, 248, 0.4);
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .link-text {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .link-text a { color: #38bdf8; text-decoration: none; cursor: pointer; }
+        .link-text a:hover { text-decoration: underline; }
+
+        .error-msg {
+            color: #f87171;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
+
+        /* Dashboard Styling */
+        .hidden { display: none !important; }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(5, 10, 20, 0.5);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #1e293b;
+            font-size: 0.9rem;
+        }
+        .status-item { display: flex; flex-direction: column; }
+        .status-item span:first-child { color: #64748b; }
+        .status-item span:last-child { color: #38bdf8; font-weight: 600; }
+
+        .search-area { margin-bottom: 20px; }
+        .search-area input { margin-bottom: 10px; }
+
+        #resultsList { margin-top: 20px; max-height: 400px; overflow-y: auto; padding-right: 5px; }
+        #resultsList::-webkit-scrollbar { width: 4px; }
+        #resultsList::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 10px; }
+
+        .result-card {
+            background: rgba(5, 10, 20, 0.6);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 3px solid #818cf8;
+            animation: slideUp 0.4s ease forwards;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .result-label { color: #818cf8; font-weight: 600; display: block; margin-bottom: 4px; }
+        .result-value { color: #f1f5f9; font-size: 1.1rem; }
+        .result-details { color: #64748b; font-size: 0.85rem; margin-top: 4px; }
+        .result-link a { color: #38bdf8; text-decoration: none; }
+        .result-link a:hover { text-decoration: underline; }
+
+        .loading-spinner {
+            display: flex; justify-content: center; align-items: center; margin: 20px 0;
+        }
+        .spinner {
+            width: 30px; height: 30px; border: 3px solid rgba(56, 189, 248, 0.1);
+            border-top-color: #38bdf8; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Matrix Background -->
+    <div class="grid-bg"></div>
+    <div class="scan-line"></div>
+
+    <!-- Rotating Globe (Three.js) -->
+    <div id="globe-container"></div>
+
+    <div class="container" id="appContainer">
+        
+        <!-- AUTH SECTION -->
+        <div id="authSection">
+            <div class="header">
+                <h1>OSINT PRO</h1>
+                <p>Secure Intelligence Gateway</p>
+            </div>
+            <div class="input-group">
+                <input type="text" id="authUsername" placeholder="Username (e.g. demo)">
+            </div>
+            <div class="input-group">
+                <input type="password" id="authPassword" placeholder="Password (e.g. demo123)">
+            </div>
+            <button id="loginBtn">Authenticate</button>
+            <div class="link-text">
+                Demo: <strong style="color:#e0f2fe;">demo / demo123</strong> &nbsp;|&nbsp; <a id="showRegister">Register</a>
+            </div>
+            <div id="authError" class="error-msg"></div>
+        </div>
+
+        <!-- DASHBOARD SECTION -->
+        <div id="dashboardSection" class="hidden">
+            <div class="header" style="margin-bottom: 20px; margin-top: 0;">
+                <h1 style="font-size: 1.5rem;">OPERATIONS</h1>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item"><span>Operator</span><span id="displayUsername">User</span></div>
+                <div class="status-item"><span>Clearance</span><span id="displayTier">Trial</span></div>
+                <div class="status-item"><span>Quota</span><span id="displayRemaining">5</span></div>
+            </div>
+
+            <div class="search-area">
+                <div class="input-group">
+                    <input type="text" id="targetInput" placeholder="Enter Target: Email, IP, Phone...">
+                </div>
+                <button id="investigateBtn" style="background: linear-gradient(135deg, #f472b6, #818cf8);">Initiate Scan</button>
+                <div id="searchError" class="error-msg"></div>
+            </div>
+
+            <div id="loadingIndicator" class="loading-spinner hidden">
+                <div class="spinner"></div>
+            </div>
+
+            <div id="resultsContainer" class="hidden">
+                <div style="border-bottom: 1px solid #1e293b; margin-bottom: 15px; padding-bottom: 5px;">
+                    <span style="color:#64748b;">INTEL REPORT:</span>
+                </div>
+                <div id="resultsList"></div>
+            </div>
+
+            <div style="margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 15px;">
+                <button id="logoutBtn" style="background: transparent; border: 1px solid #ef4444; color: #ef4444; font-family: 'Rajdhani', sans-serif;">
+                    Terminate Session
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- THREE.JS LIBRARY -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- GLOBE SCRIPT -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('globe-container');
+            if(!container) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+            camera.position.z = 3.5;
+
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(width, height);
+            container.appendChild(renderer.domElement);
+
+            // Globe
+            const geometry = new THREE.SphereGeometry(1.2, 64, 64);
+            
+            // Load Earth Texture
+            const textureLoader = new THREE.TextureLoader();
+            // High res earth map
+            const earthTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+            
+            const material = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                emissive: new THREE.Color(0x0a192f),
+                emissiveIntensity: 0.2,
+                shininess: 5
+            });
+            const globe = new THREE.Mesh(geometry, material);
+            scene.add(globe);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+            dirLight.position.set(2, 1, 3);
+            scene.add(dirLight);
+            
+            const backLight = new THREE.DirectionalLight(0x818cf8, 0.8);
+            backLight.position.set(-2, -1, -3);
+            scene.add(backLight);
+
+            // Glow Atmosphere
+            const glowMaterial = new THREE.MeshPhongMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.BackSide
+            });
+            const glow = new THREE.Mesh(new THREE.SphereGeometry(1.25, 64, 64), glowMaterial);
+            scene.add(glow);
+
+            // Stars
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsCount = 1500;
+            const posArray = new Float32Array(starsCount * 3);
+            for(let i = 0; i < starsCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 200;
+            }
+            starsGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starsMaterial = new THREE.PointsMaterial({
+                size: 0.15,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.6
+            });
+            const starMesh = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(starMesh);
+
+            // Animation
+            function animate() {
+                requestAnimationFrame(animate);
+                globe.rotation.y += 0.0025;
+                glow.rotation.y += 0.0025;
+                starMesh.rotation.y -= 0.0001;
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+        });
+    </script>
+
+    <!-- APP LOGIC SCRIPT -->
+    <script>
+        const API_URL = '/api';
+        let authToken = localStorage.getItem('osintToken');
+
+        const authSection = document.getElementById('authSection');
+        const dashboardSection = document.getElementById('dashboardSection');
+        const authUsername = document.getElementById('authUsername');
+        const authPassword = document.getElementById('authPassword');
+        const loginBtn = document.getElementById('loginBtn');
+        const showRegister = document.getElementById('showRegister');
+        const authError = document.getElementById('authError');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const targetInput = document.getElementById('targetInput');
+        const investigateBtn = document.getElementById('investigateBtn');
+        const searchError = document.getElementById('searchError');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsList = document.getElementById('resultsList');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const displayUsername = document.getElementById('displayUsername');
+        const displayTier = document.getElementById('displayTier');
+        const displayRemaining = document.getElementById('displayRemaining');
+
+        if (authToken) showDashboard();
+
+        async function apiCall(endpoint, method = 'POST', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+            const res = await fetch(`${API_URL}${endpoint}`, { method, headers, body: body ? JSON.stringify(body) : null });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        function updateUserInfo(user) {
+            displayUsername.textContent = user.username || 'User';
+            displayTier.textContent = user.tier || 'Trial';
+            displayRemaining.textContent = user.investigationsLimit === Infinity ? '∞' : (user.investigationsLimit - user.investigationsUsed);
+        }
+
+        function renderResults(results) {
+            resultsContainer.classList.remove('hidden');
+            resultsList.innerHTML = '';
+            for (const [category, items] of Object.entries(results)) {
+                const header = document.createElement('div');
+                header.style.cssText = 'color: #818cf8; font-weight: 600; margin: 15px 0 10px 0; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;';
+                header.textContent = category;
+                resultsList.appendChild(header);
+                items.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'result-card';
+                    let html = `<span class="result-label">${item.label}</span>`;
+                    html += `<div class="result-value">${item.value}</div>`;
+                    if (item.details) html += `<div class="result-details">${item.details}</div>`;
+                    if (item.link) html += `<div class="result-link"><a href="${item.link}" target="_blank">Open Intelligence Source 🔗</a></div>`;
+                    card.innerHTML = html;
+                    resultsList.appendChild(card);
+                });
+            }
+        }
+
+        // Login
+        loginBtn.addEventListener('click', async () => {
+            if(!authUsername.value || !authPassword.value) return authError.textContent = 'Enter credentials';
+            authError.textContent = '';
+            loginBtn.disabled = true; loginBtn.textContent = 'AUTHENTICATING...';
+            try {
+                const data = await apiCall('/auth/login', 'POST', { username: authUsername.value, password: authPassword.value });
+                authToken = data.token; localStorage.setItem('osintToken', authToken);
+                updateUserInfo(data.user); showDashboard();
+            } catch (e) { authError.textContent = e.message; }
+            loginBtn.disabled = false; loginBtn.textContent = 'Authenticate';
+        });
+
+        // Register
+        showRegister.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if(!authUsername.value || !authPassword.value) return authError.textContent = 'Enter username & password to register';
+            authError.textContent = '';
+            loginBtn.disabled = true; loginBtn.textContent = 'CREATING...';
+            try {
+                const data = await apiCall('/auth/register', 'POST', { username: authUsername.value, password: authPassword.value, email: authUsername.value + '@osint.local' });
+                authToken = data.token; localStorage.setItem('osintToken', authToken);
+                updateUserInfo(data.user); showDashboard();
+            } catch (e) { authError.textContent = e.message; }
+            loginBtn.disabled = false; loginBtn.textContent = 'Authenticate';
+        });
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('osintToken'); authToken = null;
+            dashboardSection.classList.add('hidden'); authSection.classList.remove('hidden');
+            targetInput.value = ''; resultsList.innerHTML = ''; resultsContainer.classList.add('hidden');
+        });
+
+        // Investigate
+        investigateBtn.addEventListener('click', async () => {
+            const target = targetInput.value.trim();
+            if(!target) return searchError.textContent = 'Enter a target';
+            searchError.textContent = '';
+            investigateBtn.disabled = true; investigateBtn.textContent = 'SCANNING...';
+            loadingIndicator.classList.remove('hidden'); resultsContainer.classList.add('hidden');
+            try {
+                const data = await apiCall('/investigate', 'POST', { target });
+                displayRemaining.textContent = data.remaining;
+                renderResults(data.results);
+            } catch (e) { searchError.textContent = e.message; }
+            loadingIndicator.classList.add('hidden');
+            investigateBtn.disabled = false; investigateBtn.textContent = 'Initiate Scan';
+        });
+
+        function showDashboard() {
+            authSection.classList.add('hidden'); dashboardSection.classList.remove('hidden');
+            fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(res => res.json())
+            .then(data => updateUserInfo(data))
+            .catch(() => {});
+        }
+
+        targetInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') investigateBtn.click(); });
+        authPassword.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginBtn.click(); });
+    </script>
+</body>
+</html>
