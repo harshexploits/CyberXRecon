@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 
 export default function OverviewPanel({ data }) {
-  const { modules, totalFindings } = data;
+  // Safe extracts with fallback values to feed the hook safely
+  const modules = data?.modules || [];
+  const totalFindings = data?.totalFindings || 0;
+  const target = data?.target || '';
 
-  // Dynamic calculations for HUD score
+  // --- HOOK MOVED TO TOP (Always runs on every render, 100% React compliant) ---
   const { score, riskLabel, riskColor, grade } = useMemo(() => {
-    // Basic math mapping to create dynamic scores based on finding counts
     const normalized = Math.min(100, Math.max(10, totalFindings * 4));
     let label = 'LOW';
     let color = '#10b981'; // Green
@@ -28,10 +30,18 @@ export default function OverviewPanel({ data }) {
     return { score: normalized, riskLabel: label, riskColor: color, grade: letterGrade };
   }, [totalFindings]);
 
-  // SVG Gauge constants
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const strokeOffset = circumference - (score / 100) * circumference;
+
+  // --- ABSOLUTE SAFETY GUARD MOVED TO BOTTOM (Safe rendering bypass) ---
+  if (!data) {
+    return (
+      <div className="relative bg-black/50 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden flex flex-col min-h-0 items-center justify-center font-mono text-[10px] text-gray-500">
+        Loading Diagnostic data...
+      </div>
+    );
+  }
 
   return (
     <div className="relative bg-black/50 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden flex flex-col min-h-0">
@@ -98,7 +108,8 @@ export default function OverviewPanel({ data }) {
           </span>
           <div className="space-y-2">
             {modules.map((m) => {
-              const count = m.items.length;
+              if (!m) return null;
+              const count = m.items ? m.items.length : 0;
               const barWidth = Math.min(100, Math.max(8, (count / 8) * 100));
 
               return (

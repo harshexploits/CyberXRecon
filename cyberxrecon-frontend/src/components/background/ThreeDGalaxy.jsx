@@ -49,7 +49,8 @@ export default function ThreeDGalaxy() {
     scene.fog = new THREE.FogExp2(0x000000, 0.0015);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 25;
+    camera.position.z = 28;
+    camera.position.y = 3;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -57,29 +58,56 @@ export default function ThreeDGalaxy() {
     currentMount.appendChild(renderer.domElement);
 
     const geometry = new THREE.BufferGeometry();
-    const count = 4000;
+    const count = 5000;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
     const twinkleSpeeds = new Float32Array(count);
-    const color = new THREE.Color();
+
+    // Color gradient markers
+    const colorCore = new THREE.Color('#e0f7fa');  // Core light cyan-white
+    const colorMid = new THREE.Color('#22d3ee');   // Mid neon cyan
+    const colorOuter = new THREE.Color('#a855f7'); // Outer neon purple
+    const colorEdge = new THREE.Color('#ec4899');  // Edge hot pink/magenta
+
+    const maxRadius = 38;
+    const branches = 3;
+    const spin = 1.8;
 
     for (let i = 0; i < count; i++) {
-      const radius = 20 + Math.random() * 60;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos((Math.random() * 2) - 1);
-      const x = radius * Math.sin(phi) * Math.cos(theta);
-      const y = radius * Math.sin(phi) * Math.sin(theta);
-      const z = radius * Math.cos(phi);
-      positions[i*3] = x;
-      positions[i*3+1] = y * 0.3;
-      positions[i*3+2] = z;
-      color.setHSL(0.6 + Math.random() * 0.3, 0.7, 0.4 + Math.random() * 0.5);
-      colors[i*3] = color.r;
-      colors[i*3+1] = color.g;
-      colors[i*3+2] = color.b;
-      sizes[i] = 0.1 + Math.random() * 0.3;
-      twinkleSpeeds[i] = 0.5 + Math.random() * 2.5;
+      // Spiral Math
+      const radius = Math.random() * maxRadius;
+      const branchAngle = ((i % branches) * 2 * Math.PI) / branches;
+      const spinAngle = radius * spin;
+      const angle = branchAngle + spinAngle;
+
+      // Organic dispersion
+      const randomX = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * 3.5;
+      const randomY = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * 1.8;
+      const randomZ = Math.pow(Math.random(), 3) * (Math.random() < 0.5 ? 1 : -1) * 3.5;
+
+      positions[i * 3]     = Math.cos(angle) * radius + randomX;
+      positions[i * 3 + 1] = randomY; // Flat disk on Y axis
+      positions[i * 3 + 2] = Math.sin(angle) * radius + randomZ;
+
+      // Color Interpolation based on distance from core
+      const t = radius / maxRadius;
+      const starColor = new THREE.Color();
+      if (t < 0.25) {
+        starColor.lerpColors(colorCore, colorMid, t / 0.25);
+      } else if (t < 0.7) {
+        starColor.lerpColors(colorMid, colorOuter, (t - 0.25) / 0.45);
+      } else {
+        starColor.lerpColors(colorOuter, colorEdge, (t - 0.7) / 0.3);
+      }
+
+      colors[i * 3]     = starColor.r;
+      colors[i * 3 + 1] = starColor.g;
+      colors[i * 3 + 2] = starColor.b;
+
+      // Twinkling properties - central stars are slightly larger and brighter
+      sizes[i] = (0.15 + Math.random() * 0.3) * (1.3 - t);
+      twinkleSpeeds[i] = 0.4 + Math.random() * 2.6;
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -96,6 +124,9 @@ export default function ThreeDGalaxy() {
     });
 
     const stars = new THREE.Points(geometry, material);
+    // Pre-set stable initial rotation so there is no jitter/snap on first render
+    stars.rotation.x = -Math.PI / 8;
+    stars.rotation.y = 0;
     scene.add(stars);
 
     const handleMouseMove = (e) => {
@@ -112,19 +143,27 @@ export default function ThreeDGalaxy() {
     window.addEventListener('scroll', handleScroll);
     handleScroll();
 
+    let animationFrameId;
+    const startTime = Date.now();
     const animate = () => {
-      requestAnimationFrame(animate);
-      const time = Date.now() * 0.001;
+      animationFrameId = requestAnimationFrame(animate);
+      const time = (Date.now() - startTime) * 0.001;
+
+      // Twinkling
       const sizeAttr = geometry.attributes.size;
       const sizeArray = sizeAttr.array;
       for (let i = 0; i < count; i++) {
-        sizeArray[i] = 0.1 + Math.abs(Math.sin(time * twinkleSpeeds[i])) * 0.3;
+        sizeArray[i] = 0.12 + Math.abs(Math.sin(time * twinkleSpeeds[i])) * 0.38;
       }
       sizeAttr.needsUpdate = true;
-      const targetRotX = -Math.PI + scrollRef.current * (Math.PI * 2);
-      const targetRotY = mouseRef.current.x * 0.3;
-      stars.rotation.x += (targetRotX - stars.rotation.x) * 0.035;
-      stars.rotation.y += (targetRotY - stars.rotation.y) * 0.05;
+
+      // Stable slow constant spin — no lerp to a moving target (avoids reload snap)
+      stars.rotation.y = time * 0.018;
+      // Subtle x-tilt driven only by scroll, from resting position
+      const restX = -Math.PI / 8;
+      const scrollTilt = scrollRef.current * (Math.PI * 0.2);
+      stars.rotation.x += (restX + scrollTilt - stars.rotation.x) * 0.02;
+
       renderer.render(scene, camera);
     };
     animate();
@@ -137,10 +176,21 @@ export default function ThreeDGalaxy() {
     window.addEventListener('resize', handleResize);
 
     return () => {
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
-      currentMount.removeChild(renderer.domElement);
+      
+      geometry.dispose();
+      material.dispose();
+      if (material.uniforms && material.uniforms.pointTexture && material.uniforms.pointTexture.value) {
+        material.uniforms.pointTexture.value.dispose();
+      }
+      renderer.dispose();
+      
+      if (currentMount && renderer.domElement) {
+        currentMount.removeChild(renderer.domElement);
+      }
     };
   }, []);
 

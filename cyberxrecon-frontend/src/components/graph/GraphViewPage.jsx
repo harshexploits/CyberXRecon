@@ -1,10 +1,53 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { buildDashboardData } from '../../utils/graphUtils';
 import { hudAudio } from '../../utils/hudAudio';
 import NetworkGraphPanel from './NetworkGraphPanel';
 import OverviewPanel from './OverviewPanel';
 import TreePanel from './TreePanel';
 import RadialPanel from './RadialPanel';
+
+// --- ADVANCED CYBERXRECON SYSTEM DIAGNOSTIC (Error Boundary) ---
+// If any grid panel crashes under the hood, this catches it and displays the exact JS error & stack trace
+class GraphErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({
+      hasError: true,
+      error: error,
+      errorInfo: errorInfo
+    });
+    console.error("Workspace System Halt Caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 bg-[#030307] flex flex-col items-center justify-center p-6 text-red-400 font-mono z-[500] border border-red-500/20">
+          <div className="w-full max-w-2xl bg-black/60 border border-red-500/30 rounded-xl p-6 shadow-2xl shadow-red-500/10 space-y-4">
+            <div className="text-sm font-bold text-red-500 flex items-center gap-2">
+              <span>⚠️</span> [CYBERXRECON WORKSPACE EXCEPTION DETECTED]
+            </div>
+            <div className="text-[10px] text-gray-500">// DIAGNOSTIC STACK TRACE</div>
+            <div className="bg-red-500/5 border border-red-500/10 rounded-lg p-3 text-[10px] text-red-300 overflow-auto max-h-48 leading-relaxed font-mono">
+              <p className="font-bold text-white">Exception: {this.state.error && this.state.error.toString()}</p>
+              <pre className="mt-3 text-red-400/80 text-[9px]">
+                {this.state.errorInfo && this.state.errorInfo.componentStack}
+              </pre>
+            </div>
+            <div className="text-[10px] text-gray-400 leading-normal">
+              Bhai, is error screen ka text copy karke ya screenshot mujhe chat par bhejye. Main ise instantly line-to-line fix kar dunga!
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function GraphViewPage({ target, onClose }) {
   const [phase, setPhase] = useState('loading');
@@ -15,7 +58,7 @@ export default function GraphViewPage({ target, onClose }) {
   
   const dashboardData = useRef(buildDashboardData(target));
 
-  // 1. Loading Terminal Boot Simulation (Labor Illusion)
+  // Loading Terminal Boot Simulation (Labor Illusion)
   const bootLogs = [
     `[INFO] Initializing CyberXRecon query nodes on target: ${target}`,
     `[SYS] Spawning sandbox processes & active connection socket...`,
@@ -50,7 +93,7 @@ export default function GraphViewPage({ target, onClose }) {
     setIsMuted(muted);
   };
 
-  // 2. Trigger Report compiling animation
+  // Trigger Report compiling animation
   const triggerReportGeneration = () => {
     hudAudio.playSweep();
     setReportProgress('compiling');
@@ -122,17 +165,19 @@ export default function GraphViewPage({ target, onClose }) {
         </div>
       </div>
 
-      {/* 4-Panel Grid Content */}
+      {/* 4-Panel Grid Content wrapped in Diagnostic System */}
       {phase === 'ready' && (
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 grid-rows-2 gap-4 p-4 overflow-hidden min-h-0">
-          <NetworkGraphPanel target={target} />
-          <OverviewPanel data={dashboardData.current} />
-          <TreePanel data={dashboardData.current} />
-          <RadialPanel data={dashboardData.current} />
-        </div>
+        <GraphErrorBoundary>
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 grid-rows-2 gap-4 p-4 overflow-hidden min-h-0">
+            <NetworkGraphPanel target={target} />
+            <OverviewPanel data={dashboardData.current} />
+            <TreePanel data={dashboardData.current} />
+            <RadialPanel data={dashboardData.current} />
+          </div>
+        </GraphErrorBoundary>
       )}
 
-      {/* 3. Global Telemetry Ticker (Marquee Footer) */}
+      {/* Global Telemetry Ticker (Marquee Footer) */}
       <div className="h-6 border-t border-white/5 bg-black/80 flex items-center shrink-0 overflow-hidden pointer-events-none font-mono text-[9px] text-gray-500 px-4">
         <div className="flex items-center gap-1.5 text-cyan-500/70 mr-4 font-bold uppercase tracking-wider">
           <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-ping" />
@@ -149,12 +194,11 @@ export default function GraphViewPage({ target, onClose }) {
         </div>
       </div>
 
-      {/* 4. Blur-Gated PDF Report Generator Modal */}
+      {/* Gated PDF Report Modal */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-[#07070e] border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
             
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
               <h3 className="text-xs font-mono font-bold text-cyan-400 tracking-wider">
                 // COMPILING EXECUTIVE INTEL REPORT
@@ -169,7 +213,6 @@ export default function GraphViewPage({ target, onClose }) {
               )}
             </div>
 
-            {/* Animation stages */}
             {reportProgress !== 'ready' ? (
               <div className="py-12 flex flex-col items-center justify-center space-y-4">
                 <div className="w-8 h-8 border-2 border-purple-500/20 border-t-purple-400 rounded-full animate-spin" />
@@ -178,9 +221,7 @@ export default function GraphViewPage({ target, onClose }) {
                 </span>
               </div>
             ) : (
-              // Gated Preview Block
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Simulated Document Preview */}
                 <div className="flex-1 border border-white/5 bg-[#0a0a14] rounded-lg p-4 font-mono text-[10px] text-gray-400 overflow-hidden relative min-h-[180px]">
                   <div className="border-b border-white/10 pb-2 mb-3">
                     <h4 className="text-xs text-white font-bold">CYBERXRECON DISCOVERY DOSSIER</h4>
@@ -191,7 +232,6 @@ export default function GraphViewPage({ target, onClose }) {
                     <p>TOTAL CORRELATIONS: 25 high confidence nodes found.</p>
                     <div className="h-2 w-1/3 bg-gray-700/50 rounded" />
                     
-                    {/* The Gated Blur Element */}
                     <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-[#0a0a14] via-[#0a0a14]/90 to-transparent flex flex-col items-center justify-end p-5 text-center">
                       <div className="backdrop-blur-sm bg-black/60 border border-purple-500/20 rounded-xl p-4 max-w-sm">
                         <span className="text-xl">🔒</span>

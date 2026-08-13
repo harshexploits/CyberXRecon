@@ -31,31 +31,9 @@ export default function NetworkGraphPanel({ target }) {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, node }
   const [loadingNodeIds, setLoadingNodeIds] = useState(new Set()); // Tracks active transforms
 
-  // Defensive load initial dataset
-  const initialData = useMemo(() => {
-    if (!target) return { nodes: [], links: [] };
-    return buildNetworkGraph(target);
-  }, [target]);
+  // --- ALL HANDLER FUNCTIONS DECLARED FIRST (Solves Hoisting TDZ & ReferenceErrors) ---
 
-  const [graphState, setGraphState] = useState({ nodes: [], links: [] });
-
-  // Native ResizeObserver for zero-clipping canvas layout stretching
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new ResizeObserver((entries) => {
-      if (!entries || entries.length === 0) return;
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) {
-        setDims({ w: width, h: height });
-      }
-    });
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  // 100% Bulletproof getSeverity (Safely guards .toLowerCase() from throwing TypeErrors)
+  // 100% Bulletproof getSeverity
   const getSeverity = (label) => {
     if (!label || typeof label !== 'string') return 'LOW';
     const txt = label.toLowerCase();
@@ -68,21 +46,35 @@ export default function NetworkGraphPanel({ target }) {
     return 'LOW';
   };
 
-  // Physics force tuning with strict functional checking
-  useEffect(() => {
-    if (graphRef.current && typeof graphRef.current.d3Force === 'function') {
-      const chargeForce = graphRef.current.d3Force('charge');
-      if (chargeForce && typeof chargeForce.strength === 'function') {
-        chargeForce.strength(-600); // Massive repulsion to push large boxes apart
-      }
-      const linkForce = graphRef.current.d3Force('link');
-      if (linkForce && typeof linkForce.distance === 'function') {
-        linkForce.distance(100);    // Extends link connector lengths
-      }
-    }
-  }, [graphState]);
+  // Node Click handler with SHIFT Multiselect
+  const handleNodeClick = (node, event) => {
+    hudAudio.playClick();
 
-  // Handle layout coordinate mapping with active pipeline links
+    if (event.shiftKey) {
+      setSelectedNodeIds(prev => {
+        const next = new Set(prev);
+        if (next.has(node.id)) {
+          next.delete(node.id);
+        } else {
+          next.add(node.id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedNodeIds(new Set());
+      setSelectedNode(node);
+    }
+  };
+
+  // Defensive load initial dataset
+  const initialData = useMemo(() => {
+    if (!target) return { nodes: [], links: [] };
+    return buildNetworkGraph(target);
+  }, [target]);
+
+  const [graphState, setGraphState] = useState({ nodes: [], links: [] });
+
+  // Handle layout coordinate mapping
   const applyLayoutEngine = (mode, nodesList, linksList) => {
     const nodesSource = initialData?.nodes || [];
     const activeLinks = linksList || [];
@@ -132,7 +124,6 @@ export default function NetworkGraphPanel({ target }) {
         mod.fy = -40;
       });
 
-      // --- CRASH-PROOF & PIPELINE SYNC PARENT LOOKUP ---
       // We map parent relationships directly using the live links array passed to this function
       findings.forEach(find => {
         const parentLink = activeLinks.find(l => {
@@ -146,7 +137,7 @@ export default function NetworkGraphPanel({ target }) {
         }
       });
 
-      // Level 3: Vertical Column Stacking (Completely prevents overlapping!)
+      // Level 3: Vertical Column Stacking
       modules.forEach(mod => {
         const childFindings = findings.filter(f => f.parentId === mod.id);
         if (childFindings.length === 0) return;
@@ -177,6 +168,148 @@ export default function NetworkGraphPanel({ target }) {
       });
     }
   };
+
+  // Bulk / Context actions engine
+  const executeContextAction = (actionType) => {
+    if (!contextMenu || !contextMenu.node) return; // Strict Context Check
+    const targetNodes = selectedNodeIds.size > 0 ? Array.from(selectedNodeIds) : [contextMenu.node.id];
+    setContextMenu(null);
+    
+    setLoadingNodeIds(prev => {
+      const next = new Set(prev);
+      targetNodes.forEach(id => next.add(id));
+      return next;
+    });
+    hudAudio.playSweep();
+
+    setTimeout(() => {
+      const generatedNodes = [];
+      const generatedLinks = [];
+
+      targetNodes.forEach((nodeId, idx) => {
+        const originalNode = graphState.nodes.find(n => n.id === nodeId);
+        if (!originalNode) return;
+
+        const timestamp = Date.now() + idx;
+        const offsetVal = 35;
+
+        if (actionType === 'dns') {
+          const ipId = `dyn-dns-${timestamp}`;
+          generatedNodes.push({
+            id: ipId,
+            label: `Resolved IP: 185.101.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`,
+            group: 3,
+            color: '#ef4444',
+            icon: '🖥️',
+            x: originalNode.x + (Math.random() - 0.5) * offsetVal,
+            y: originalNode.y + (Math.random() - 0.5) * offsetVal
+          });
+          generatedLinks.push({ source: nodeId, target: ipId });
+        } else if (actionType === 'whois') {
+          const whoisId = `dyn-whois-${timestamp}`;
+          generatedNodes.push({
+            id: whoisId,
+            label: `Passive WHOIS Registry Record`,
+            group: 3,
+            color: '#a855f7',
+            icon: '📄',
+            x: originalNode.x + (Math.random() - 0.5) * offsetVal,
+            y: originalNode.y + (Math.random() - 0.5) * offsetVal
+          });
+          generatedLinks.push({ source: nodeId, target: whoisId });
+        }
+      });
+
+      setGraphState(prev => ({
+        nodes: [...prev.nodes, ...generatedNodes],
+        links: [...prev.links, ...generatedLinks]
+      }));
+
+      setLoadingNodeIds(new Set());
+      setSelectedNodeIds(new Set());
+      hudAudio.playSuccess();
+    }, 1200);
+  };
+
+  const handleFlagNode = (flagChar) => {
+    if (!contextMenu || !contextMenu.node) return;
+    const nodeId = contextMenu.node.id;
+    setAnnotations(prev => ({
+      ...prev,
+      [nodeId]: { ...prev[nodeId], flag: flagChar }
+    }));
+    setContextMenu(null);
+    hudAudio.playSuccess();
+  };
+
+  const handleAddNote = () => {
+    if (!contextMenu || !contextMenu.node) return;
+    const nodeId = contextMenu.node.id;
+    const currentNote = annotations[nodeId]?.note || '';
+    const noteVal = prompt('Enter analyst annotations for this entity:', currentNote);
+    
+    if (noteVal !== null) {
+      setAnnotations(prev => ({
+        ...prev,
+        [nodeId]: { ...prev[nodeId], note: noteVal }
+      }));
+    }
+    setContextMenu(null);
+    hudAudio.playSuccess();
+  };
+
+  // STALE CLOSURE FIX: TRACK LATEST NODES VIA REF
+  const nodesRef = useRef([]);
+  useEffect(() => {
+    nodesRef.current = graphState.nodes || [];
+  }, [graphState.nodes]);
+
+  // UPGRADE: CROSS-PANEL CLICK SYNC LISTENER
+  useEffect(() => {
+    const handleGlobalFocus = (event) => {
+      const { id } = event.detail;
+      const node = nodesRef.current.find(n => n.id === id);
+      if (node && graphRef.current && typeof graphRef.current.centerAt === 'function') {
+        setSelectedNode(node);
+        graphRef.current.centerAt(node.x, node.y, 1000);
+        graphRef.current.zoom(2.2, 1000);
+        hudAudio.playClick();
+      }
+    };
+
+    window.addEventListener('cyberxrecon-focus', handleGlobalFocus);
+    return () => window.removeEventListener('cyberxrecon-focus', handleGlobalFocus);
+  }, []);
+
+  // Native ResizeObserver
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        setDims({ w: width, h: height });
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Physics force tuning
+  useEffect(() => {
+    if (graphRef.current && typeof graphRef.current.d3Force === 'function') {
+      const chargeForce = graphRef.current.d3Force('charge');
+      if (chargeForce && typeof chargeForce.strength === 'function') {
+        chargeForce.strength(-600); // Massive repulsion to push large boxes apart
+      }
+      const linkForce = graphRef.current.d3Force('link');
+      if (linkForce && typeof linkForce.distance === 'function') {
+        linkForce.distance(100);    // Extends link connector lengths
+      }
+    }
+  }, [graphState]);
 
   // Reset and load graph safely
   useEffect(() => {
@@ -404,115 +537,6 @@ export default function NetworkGraphPanel({ target }) {
     }
 
     ctx.restore();
-  };
-
-  const handleNodeClick = (node, event) => {
-    hudAudio.playClick();
-
-    if (event.shiftKey) {
-      // Toggle Shift multiselect
-      setSelectedNodeIds(prev => {
-        const next = new Set(prev);
-        if (next.has(node.id)) {
-          next.delete(node.id);
-        } else {
-          next.add(node.id);
-        }
-        return next;
-      });
-    } else {
-      setSelectedNodeIds(new Set());
-      setSelectedNode(node);
-    }
-  };
-
-  // Bulk / Context actions engine
-  const executeContextAction = (actionType) => {
-    if (!contextMenu || !contextMenu.node) return; // Strict Context Check
-    const targetNodes = selectedNodeIds.size > 0 ? Array.from(selectedNodeIds) : [contextMenu.node.id];
-    setContextMenu(null);
-    
-    setLoadingNodeIds(prev => {
-      const next = new Set(prev);
-      targetNodes.forEach(id => next.add(id));
-      return next;
-    });
-    hudAudio.playSweep();
-
-    setTimeout(() => {
-      const generatedNodes = [];
-      const generatedLinks = [];
-
-      targetNodes.forEach((nodeId, idx) => {
-        const originalNode = graphState.nodes.find(n => n.id === nodeId);
-        if (!originalNode) return;
-
-        const timestamp = Date.now() + idx;
-        const offsetVal = 35;
-
-        if (actionType === 'dns') {
-          const ipId = `dyn-dns-${timestamp}`;
-          generatedNodes.push({
-            id: ipId,
-            label: `Resolved IP: 185.101.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`,
-            group: 3,
-            color: '#ef4444',
-            icon: '🖥️',
-            x: originalNode.x + (Math.random() - 0.5) * offsetVal,
-            y: originalNode.y + (Math.random() - 0.5) * offsetVal
-          });
-          generatedLinks.push({ source: nodeId, target: ipId });
-        } else if (actionType === 'whois') {
-          const whoisId = `dyn-whois-${timestamp}`;
-          generatedNodes.push({
-            id: whoisId,
-            label: `Passive WHOIS Registry Record`,
-            group: 3,
-            color: '#a855f7',
-            icon: '📄',
-            x: originalNode.x + (Math.random() - 0.5) * offsetVal,
-            y: originalNode.y + (Math.random() - 0.5) * offsetVal
-          });
-          generatedLinks.push({ source: nodeId, target: whoisId });
-        }
-      });
-
-      setGraphState(prev => ({
-        nodes: [...prev.nodes, ...generatedNodes],
-        links: [...prev.links, ...generatedLinks]
-      }));
-
-      setLoadingNodeIds(new Set());
-      setSelectedNodeIds(new Set());
-      hudAudio.playSuccess();
-    }, 1200);
-  };
-
-  const handleFlagNode = (flagChar) => {
-    if (!contextMenu || !contextMenu.node) return;
-    const nodeId = contextMenu.node.id;
-    setAnnotations(prev => ({
-      ...prev,
-      [nodeId]: { ...prev[nodeId], flag: flagChar }
-    }));
-    setContextMenu(null);
-    hudAudio.playSuccess();
-  };
-
-  const handleAddNote = () => {
-    if (!contextMenu || !contextMenu.node) return;
-    const nodeId = contextMenu.node.id;
-    const currentNote = annotations[nodeId]?.note || '';
-    const noteVal = prompt('Enter analyst annotations for this entity:', currentNote);
-    
-    if (noteVal !== null) {
-      setAnnotations(prev => ({
-        ...prev,
-        [nodeId]: { ...prev[nodeId], note: noteVal }
-      }));
-    }
-    setContextMenu(null);
-    hudAudio.playSuccess();
   };
 
   const renderContextMenu = () => {

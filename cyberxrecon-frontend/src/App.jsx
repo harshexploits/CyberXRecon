@@ -15,6 +15,8 @@ function App() {
   const [authMode, setAuthMode] = useState('signin');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [scanTarget, setScanTarget] = useState('');
+  const [autoStartScan, setAutoStartScan] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -39,9 +41,19 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <HomePage setCurrentPage={setCurrentPage} />;
+        return (
+          <HomePage
+            setCurrentPage={setCurrentPage}
+          />
+        );
       case 'dashboard':
-        return <DashboardPage />;
+        return (
+          <DashboardPage
+            initialTarget={scanTarget}
+            autoStartScan={autoStartScan}
+            clearAutoStart={() => setAutoStartScan(false)}
+          />
+        );
       case 'pricing':
         return <PricingPage />;
       case 'blog':
@@ -63,11 +75,15 @@ function App() {
           to { opacity: 1; transform: translateY(0); }
         }
         .page-transition { animation: pageFadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes resultSlideIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
       `}</style>
 
       <ThreeDGalaxy />
 
-      <div key={currentPage} className="page-transition relative z-10 flex-1 mt-28 px-4 md:px-10 pb-10">
+      <div key={currentPage} className={`page-transition relative z-10 flex-1 px-4 md:px-6 pb-10 ${currentPage === 'dashboard' ? 'mt-20' : 'mt-28'}`}>
         {renderPage()}
       </div>
 

@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import { hudAudio } from '../../utils/hudAudio';
 
 export default function TreePanel({ data }) {
-  const { target, modules } = data;
-  
-  // UI States
+  // --- ALL HOOKS DECLARED AT THE VERY TOP (Strict Rules of Hooks compliance) ---
   const [filterText, setFilterText] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({
     ports: true,
@@ -15,6 +13,9 @@ export default function TreePanel({ data }) {
     breach: true
   });
   const [activeItemKey, setActiveItemKey] = useState(null);
+
+  const target = data?.target || '';
+  const modules = data?.modules || [];
 
   // Toggle Folder State
   const toggleFolder = (key) => {
@@ -30,13 +31,14 @@ export default function TreePanel({ data }) {
     hudAudio.playSweep();
     const nextState = {};
     modules.forEach(m => {
-      nextState[m.key] = shouldExpand;
+      if (m && m.key) nextState[m.key] = shouldExpand;
     });
     setExpandedFolders(nextState);
   };
 
   // Threat Matrix classification helper
   const getSeverity = (label) => {
+    if (!label || typeof label !== 'string') return { text: 'LOW', css: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' };
     const txt = label.toLowerCase();
     if (txt.includes('ssh') || txt.includes('open') || txt.includes('breach') || txt.includes('old')) {
       return { text: 'HIGH', css: 'text-red-400 bg-red-500/10 border-red-500/20' };
@@ -54,8 +56,6 @@ export default function TreePanel({ data }) {
     setActiveItemKey(leafId);
 
     // --- DECOUPLED HUD CROSS-PANEL BROADCASTER ---
-    // This fires a global event. Any other panel (like NetworkGraph) listening to this 
-    // will automatically locate, center, and highlight this evidence on the canvas.
     const focusEvent = new CustomEvent('cyberxrecon-focus', {
       detail: { id: leafId, label: item }
     });
@@ -64,16 +64,28 @@ export default function TreePanel({ data }) {
 
   // Filter items dynamically based on search box input
   const filteredModules = useMemo(() => {
-    return modules.map(m => {
-      const matchedItems = m.items.map((item, idx) => ({ item, idx }))
-        .filter(({ item }) => item.toLowerCase().includes(filterText.toLowerCase()));
+    const modulesList = modules || [];
+    return modulesList.map(m => {
+      if (!m) return null;
+      const itemsList = m.items || [];
+      const matchedItems = itemsList.map((item, idx) => ({ item, idx }))
+        .filter(({ item }) => item && typeof item === 'string' && item.toLowerCase().includes(filterText.toLowerCase()));
       
       return {
         ...m,
         matchedItems
       };
-    });
+    }).filter(Boolean);
   }, [modules, filterText]);
+
+  // --- ABSOLUTE SAFETY GUARD SHIFTED TO BOTTOM (Bypasses rendering, doesn't skip hooks) ---
+  if (!data) {
+    return (
+      <div className="relative bg-[#020205]/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden flex flex-col min-h-0 items-center justify-center font-mono text-[10px] text-gray-500">
+        Waiting for ingestion pipeline...
+      </div>
+    );
+  }
 
   return (
     <div className="relative bg-[#020205]/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden flex flex-col min-h-0 select-none">
@@ -126,9 +138,11 @@ export default function TreePanel({ data }) {
         <div className="space-y-2 pl-2 border-l border-white/5 relative">
           
           {filteredModules.map((m) => {
+            if (!m) return null;
             const isFolderExpanded = expandedFolders[m.key] || filterText !== '';
-            const itemsCount = m.items.length;
-            const matchedCount = m.matchedItems.length;
+            const itemsCount = m.items ? m.items.length : 0;
+            const matchedItemsList = m.matchedItems || [];
+            const matchedCount = matchedItemsList.length;
 
             // If searching, hide empty folders
             if (filterText !== '' && matchedCount === 0) return null;
@@ -136,7 +150,7 @@ export default function TreePanel({ data }) {
             return (
               <div key={m.key} className="relative animate-fade-in">
                 
-                {/* Folder Item (The Module Node) */}
+                {/* Folder Item */}
                 <div 
                   onClick={() => toggleFolder(m.key)}
                   className="group/folder flex items-center justify-between p-1.5 hover:bg-white/[0.02] rounded-lg border border-transparent hover:border-white/5 cursor-pointer transition-all duration-150"
@@ -154,12 +168,12 @@ export default function TreePanel({ data }) {
                   </span>
                 </div>
 
-                {/* Nested Leaves (The Evidence Nodes) */}
+                {/* Nested Leaves */}
                 {isFolderExpanded && (
                   <div className="pl-6 mt-1.5 space-y-1 relative border-l border-emerald-500/10 ml-3.5 pb-1">
                     
                     {/* SVG Branch visualization mapping */}
-                    {m.matchedItems.map(({ item, idx }) => {
+                    {matchedItemsList.map(({ item, idx }) => {
                       const leafId = `${m.key}-${idx}`;
                       const isActive = activeItemKey === leafId;
                       const severity = getSeverity(item);
@@ -201,7 +215,7 @@ export default function TreePanel({ data }) {
 
       </div>
 
-      {/* Real-Time Live Activity Log Ticker (Bottom Mini Panel) */}
+      {/* Real-Time Live Activity Log Ticker */}
       <div className="h-8 border-t border-white/5 bg-black/40 flex items-center justify-between px-4 shrink-0 pointer-events-none font-mono text-[8px] text-gray-500">
         <span>[STATUS: INTELLIGENCE RECON PIPELINE ACTIVE]</span>
         {activeItemKey && (
